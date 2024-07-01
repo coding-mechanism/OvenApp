@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Oven App</title>
+</head>
+<style>
+    input{
+        margin-top: 1vh;
+        margin-bottom: 1vh;
+    }
+
+</style>
+<body style=" background-color: #708090;">
+
+    <div style="
+ width: max-content; height: max-content; text-align: center;"
+>
+    <button onclick="playAlarm()">Play Alarm</button>
+    
+    <div style="margin: 1vw; padding: 2vw; border: dashed 1px black; border-radius: 5px;">
+        <div style="width: 100%; height: 20vh; margin-top: 2vh; margin-bottom: 2vh">
+            <textarea disabled style=" overflow-y: scroll; resize: none; width: 98%; height: 100%; background-color: black; border-radius: 5px; color: #00ff00; font-size: 2vh;" name="consoleDisplay" id="consoleDisplay"></textarea>
+
+        </div>
+        <div style="border: 1px dashed black; padding-top: 2vh; padding-bottom: 2vh;">
+            <input id="jobInput" style="width: 98%; height: 5vh; background-color: black; border-radius: 5px; color: #00ff00; font-size: 2vh" placeholder="Enter job number">
+            <input id="modelInput" style="width: 98%; height: 5vh; background-color: black; border-radius: 5px; color: #00ff00; font-size: 2vh" placeholder="Enter model: Q4X / Q4Z">
+            <button onclick="addJobToDatabase()" id="newJobButton" style="margin-top: 1vh; width: 20%; height: 4vh; border-radius: 5px; font-size: 2vh;">Enter</button>
+        </div>
+
+        <div style="margin-top: 2vh; margin-bottom: 2vh; height: 70vh; width: 100%">
+            <audio id="alarm" src="C:/Windows/Media/Alarm01.wav"></audio>
+                <table id="jobTable" style="overflow-y:scroll; background-color: black; height: 100%; width: 100%; border: solid 1px black; border-radius: 5px;">
+                    <tr>
+                        <td id="output" colspan="3" style="text-align: center; border-radius: 5px;"></td>
+                    </tr>
+                </table>
+        </div>
+        <div style="height: 10%; border-radius: 5px;">
+            <button onclick="pauseAlarm()" style="width: 50%; height: 10vh; border-radius: 5px;">Pause Alarm</button>
+        </div>
+    </div>
+
+    <script>
+
+        function addJobToDatabase(){
+            let validated = checkInfo();
+            if(validated){
+                let jobNumber = String(jobInput.value);
+                let model = String(modelInput.value);
+                let modelOffset = 0;
+                let timeStampMilliseconds = Date.now();
+                let readyToExitOven = false;
+                if(model === "Q4X"){
+                    modelOffset = convertCycleToMilliseconds(1, 0) + timeStampMilliseconds;
+                }
+
+                if(model === "Q4Z"){
+                    modelOffset = convertCycleToMilliseconds(1, 0) + timeStampMilliseconds;
+                }
+
+                let Jobject = {jobNumber: jobNumber, model: model, timeStamp: timeStampMilliseconds.toString(), modelOffset: modelOffset.toString(), exitOven: readyToExitOven};
+                let jobDatabase = JSON.parse(localStorage.getItem("Jobject"));
+                let jobArray = [];
+                if(jobDatabase){
+                    jobDatabase.push(Jobject);
+                    localStorage.setItem("Jobject", JSON.stringify(jobDatabase));
+                } else {
+                    jobArray.push(Jobject);
+                    localStorage.setItem("Jobject", JSON.stringify(jobArray));
+                    localStorage.setItem("NextJob", JSON.stringify(Jobject));
+
+                }
+            }
+        }
+
+        function findReadyJobs(){
+            let nextJob = JSON.parse(localStorage.getItem("NextJob"));
+            if(((nextJob.modelOffset - convertCycleToMilliseconds(0, 50)) <= Date.now()) && (Date.now() <= nextJob.modelOffset)){
+                nextJob.exitOven = "almost";
+                console.log(nextJob);
+            }
+            if(Date.now() >= nextJob.modelOffset){
+                nextJob.exitOven = true;
+                console.log(`Job ${nextJob.jobNumber} is ready, exitOven: ${nextJob.exitOven}`);
+                console.log(nextJob);
+            }
+            localStorage.setItem("NextJob", JSON.stringify(nextJob));
+        }
+
+        function checkInfo() {
+            let jobInput = document.getElementById('jobInput').value;
+            let modelInput = document.getElementById('modelInput').value;
+            let jobX = /^F[0-9]{8}$/;
+            let validated = '';
+
+            if(jobInput.match(jobX) !== null){
+                writeToConsole("Job number matches");
+                validated += '1';
+            } else{
+                writeToConsole("Job number doesn't match");
+            }
+
+            if(modelInput === "Q4X" || modelInput === "Q4Z"){
+                writeToConsole("Model number matches");
+                validated += '1';
+            } else{
+                writeToConsole("Model number doesn't match");
+            }
+            return (validated == '11');
+                        
+        }
+
+        function writeToConsole(messageString){
+            let console = document.getElementById("consoleDisplay");
+            console.value += (Date() + "--> " + messageString + '\n\n');           
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function convertCycleToMilliseconds(numHours, numMinutes){
+            return ((numHours * 1000 * 60 * 60) + (numMinutes * 1000 * 60));
+        }
+
+        setInterval((() => {findReadyJobs();}), 6000);
+
+function playAlarm() {
+    startBeep();
+    let sound = document.getElementById('alarm');
+    sound.play();
+    sound.loop = true;
+}
+
+function pauseAlarm() {
+    stopBeep();
+    let sound = document.getElementById('alarm');
+    sound.pause();
+    sound.loop = false;
+}
+
+var audioContext;
+var oscillator;
+var audioGain;
+
+function startBeep() {
+    // Only create the context and oscillator if they don't already exist
+    if (!audioContext) {
+        audioContext = new AudioContext();
+        oscillator = audioContext.createOscillator();
+        audioGain = audioContext.createGain();
+
+        oscillator.connect(audioGain);
+        audioGain.connect(audioContext.destination);
+
+        oscillator.frequency.value = 1000; // Frequency in hertz
+        audioGain.gain.value = 0.1; // Volume control
+
+        oscillator.start();
+    }
+}
+
+function stopBeep() {
+    if (oscillator) {
+        oscillator.stop();
+        oscillator = null; // Clear the oscillator
+        audioContext.close(); // Close the audio context to clean up resources
+        audioContext = null; // Reset the audio context to allow a fresh start
+    }
+}
+
+window.onload = (event) => {
+    let console = document.getElementById("consoleDisplay");
+    console.value = "Enter information below \n\n";
+
+};
+
+    </script>
+
+</body>
+</html>
